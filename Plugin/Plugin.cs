@@ -60,6 +60,7 @@ namespace DynamicMaps
             new AirdropBoxOnBoxLandPatch().Enable();
             new PlayerOnDeadPatch().Enable();
             new PlayerInventoryThrowItemPatch().Enable();
+            new ShowInventoryScreenLootPatch().Enable();
             new ShowViewButtonPatch().Enable();
             new MenuLoadPatch().Enable();
         }

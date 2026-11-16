@@ -7,6 +7,7 @@ using DynamicMaps.Patches;
 using DynamicMaps.UI.Components;
 using DynamicMaps.Utils;
 using EFT;
+using EFT.Interactive;
 using UnityEngine;
 
 namespace DynamicMaps.DynamicMarkers
@@ -118,18 +119,22 @@ namespace DynamicMaps.DynamicMarkers
             _lastMapView = map;
             
             TryAddMarkers();
+            RefreshLootedMarkers();
 
             GameWorldUnregisterPlayerPatch.OnUnregisterPlayer += OnUnregisterPlayer;
+            CorpseLootTracker.OnCorpseLootStateChanged += OnCorpseLootStateChanged;
         }
 
         public void OnHideInRaid(MapView map)
         {
             GameWorldUnregisterPlayerPatch.OnUnregisterPlayer -= OnUnregisterPlayer;
+            CorpseLootTracker.OnCorpseLootStateChanged -= OnCorpseLootStateChanged;
         }
 
         public void OnRaidEnd(MapView map)
         {
             GameWorldUnregisterPlayerPatch.OnUnregisterPlayer -= OnUnregisterPlayer;
+            CorpseLootTracker.OnCorpseLootStateChanged -= OnCorpseLootStateChanged;
 
             _lastMapView = map;
             TryRemoveMarkers();
@@ -149,6 +154,7 @@ namespace DynamicMaps.DynamicMarkers
         public void OnDisable(MapView map)
         {
             GameWorldUnregisterPlayerPatch.OnUnregisterPlayer -= OnUnregisterPlayer;
+            CorpseLootTracker.OnCorpseLootStateChanged -= OnCorpseLootStateChanged;
             TryRemoveMarkers();
         }
 
@@ -163,6 +169,62 @@ namespace DynamicMaps.DynamicMarkers
             if (player.HasCorpse())
             {
                 TryAddMarker(player);
+            }
+        }
+
+        private void OnCorpseLootStateChanged(string profileId, CorpseLootState state)
+        {
+            if (string.IsNullOrEmpty(profileId) || GetLootedColor(state) is not Color color)
+            {
+                return;
+            }
+
+            foreach (var pair in _corpseMarkers)
+            {
+                if (pair.Value is null || pair.Key.ProfileId != profileId)
+                {
+                    continue;
+                }
+
+                pair.Value.Color = color;
+            }
+        }
+
+        // Corpses can be looted while the map is closed, so re-apply the color of any marker
+        // whose corpse has been looted since the map was last shown.
+        private void RefreshLootedMarkers()
+        {
+            foreach (var pair in _corpseMarkers)
+            {
+                if (pair.Value is null)
+                {
+                    continue;
+                }
+
+                ApplyLootedColor(pair.Key, pair.Value);
+            }
+        }
+
+        private void ApplyLootedColor(Player player, MapMarker marker)
+        {
+            if (GetLootedColor(CorpseLootTracker.GetState(player.ProfileId)) is not Color color)
+            {
+                return;
+            }
+
+            marker.Color = color;
+        }
+
+        private static Color? GetLootedColor(CorpseLootState state)
+        {
+            switch (state)
+            {
+                case CorpseLootState.LootedByPlayer:
+                    return Settings.LootedCorpseColor.Value;
+                case CorpseLootState.LootedByOther:
+                    return Settings.OthersLootedCorpseColor.Value;
+                default:
+                    return null;
             }
         }
 
@@ -284,6 +346,9 @@ namespace DynamicMaps.DynamicMarkers
             // try adding marker
             var marker = _lastMapView.AddMapMarker(markerDef);
             _corpseMarkers[player] = marker;
+
+            // the corpse may have been looted before the marker existed (map was closed)
+            ApplyLootedColor(player, marker);
         }
 
         private void RemoveDisabledMarkers()

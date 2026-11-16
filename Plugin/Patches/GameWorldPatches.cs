@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using SPT.Reflection.Patching;
+using DynamicMaps.DynamicMarkers;
 using EFT;
 using EFT.Interactive;
 using EFT.InventoryLogic;
@@ -22,6 +23,9 @@ namespace DynamicMaps.Patches
         [PatchPostfix]
         public static void PatchPostfix(GameWorld __instance)
         {
+            // Start tracking corpse looting for this raid, even if the map is never opened
+            CorpseLootTracker.Start();
+
             // Credit to RaiRai for finding the hidden stash names
             var caches = LocationScene.GetAllObjects<LootableContainer>()
                 .Where( x => 
@@ -60,6 +64,8 @@ namespace DynamicMaps.Patches
                 Plugin.Log.LogError($"{e.Message}");
                 Plugin.Log.LogError($"{e.StackTrace}");
             }
+
+            CorpseLootTracker.Stop();
         }
     }
 

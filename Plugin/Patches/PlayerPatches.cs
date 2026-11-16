@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Reflection;
 using SPT.Reflection.Patching;
+using DynamicMaps.DynamicMarkers;
 using DynamicMaps.Utils;
 using EFT;
 using EFT.Interactive;
@@ -23,6 +24,25 @@ namespace DynamicMaps.Patches
         public static void PatchPostfix(Player __instance)
         {
             OnDead?.Invoke(__instance);
+        }
+    }
+
+    internal class ShowInventoryScreenLootPatch : ModulePatch
+    {
+        protected override MethodBase GetTargetMethod()
+        {
+            return AccessTools.Method(typeof(EftGamePlayerOwner), nameof(EftGamePlayerOwner.ShowInventoryScreenLoot));
+        }
+
+        [PatchPostfix]
+        public static void PatchPostfix(CompoundItem loot)
+        {
+            if (loot is null)
+            {
+                return;
+            }
+
+            CorpseLootTracker.NotifyLootWindowOpened(loot);
         }
     }
 

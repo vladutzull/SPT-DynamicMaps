@@ -119,6 +119,8 @@ namespace DynamicMaps.Config
         public static ConfigEntry<Color> KilledCorpseColor;
         public static ConfigEntry<Color> KilledBossColor;
         public static ConfigEntry<Color> KilledOtherColor;
+        public static ConfigEntry<Color> LootedCorpseColor;
+        public static ConfigEntry<Color> OthersLootedCorpseColor;
         public static ConfigEntry<Color> BtrColor;
         public static ConfigEntry<Color> ExtractDefaultColor;
         public static ConfigEntry<Color> ExtractOpenColor;
@@ -834,6 +836,24 @@ namespace DynamicMaps.Config
                 new Color(1f, 1f, 1f),
                 new ConfigDescription(
                     "Color of the marker",
+                    null,
+                    new ConfigurationManagerAttributes { })));
+            
+            ConfigEntries.Add(LootedCorpseColor = config.Bind(
+                MarkerColors,
+                "Looted corpse marker color",
+                new Color(0.5f, 0.5f, 0.5f),
+                new ConfigDescription(
+                    "Color of the marker for corpses that have been looted by the player (loot window opened)",
+                    null,
+                    new ConfigurationManagerAttributes { })));
+            
+            ConfigEntries.Add(OthersLootedCorpseColor = config.Bind(
+                MarkerColors,
+                "Looted by others corpse marker color",
+                new Color(0.75f, 0.75f, 0.3f),
+                new ConfigDescription(
+                    "Color of the marker for corpses that have been looted by someone else (teammate, bot, ...)",
                     null,
                     new ConfigurationManagerAttributes { })));
             
