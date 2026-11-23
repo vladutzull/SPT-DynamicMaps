@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using BepInEx.Configuration;
 using DynamicMaps.ExternalModSupport;
 using DynamicMaps.Utils;
@@ -11,6 +13,8 @@ namespace DynamicMaps.Config
     internal static class Settings
     {
         private static readonly List<ConfigEntryBase> ConfigEntries = [];
+        private static readonly Dictionary<string, ConfigEntry<string>> MapPreferences = new(StringComparer.OrdinalIgnoreCase);
+        private static ConfigFile _config;
 
         #region General
 
@@ -35,11 +39,14 @@ namespace DynamicMaps.Config
         #region Dynamic Markers
 
         private const string DynamicMarkerTitle = "2. Dynamic Markers";
+        public static ConfigEntry<string> MarkerPack;
         public static ConfigEntry<bool> ShowPlayerMarker;
         public static ConfigEntry<bool> ShowFriendlyPlayerMarkersInRaid;
         public static ConfigEntry<bool> ShowEnemyPlayerMarkersInRaid;
         public static ConfigEntry<bool> ShowScavMarkersInRaid;
         public static ConfigEntry<bool> ShowBossMarkersInRaid;
+        public static ConfigEntry<bool> ShowNonVanillaBotMarkersInRaid;
+        public static ConfigEntry<bool> NonVanillaBotUseStar;
         public static ConfigEntry<bool> ShowLockedDoorStatus;
         public static ConfigEntry<bool> ShowQuestsInRaid;
         public static ConfigEntry<bool> ShowExtractsInRaid;
@@ -48,6 +55,7 @@ namespace DynamicMaps.Config
         public static ConfigEntry<bool> ShowSecretPointsInRaid;
         public static ConfigEntry<bool> ShowDroppedBackpackInRaid;
         public static ConfigEntry<bool> ShowWishListItemsInRaid;
+        public static ConfigEntry<bool> ShowWishListItemsInContainers;
         public static ConfigEntry<bool> ShowBTRInRaid;
         public static ConfigEntry<bool> ShowAirdropsInRaid;
         public static ConfigEntry<bool> ShowHiddenStashesInRaid;
@@ -113,9 +121,11 @@ namespace DynamicMaps.Config
         public static ConfigEntry<Color> PmcUsecColor;
         public static ConfigEntry<Color> ScavColor;
         public static ConfigEntry<Color> BossColor;
+        public static ConfigEntry<Color> NonVanillaBotColor;
         public static ConfigEntry<Color> AirdropColor;
         public static ConfigEntry<Color> BackpackColor;
         public static ConfigEntry<Color> LootItemColor;
+        public static ConfigEntry<Color> ContainerLootItemColor;
         public static ConfigEntry<Color> KilledCorpseColor;
         public static ConfigEntry<Color> KilledBossColor;
         public static ConfigEntry<Color> KilledOtherColor;
@@ -137,12 +147,16 @@ namespace DynamicMaps.Config
         private const string ExternModSupport = "7. External Mod Support";
         public static ConfigEntry<bool> ShowHeliCrashMarker;
         
+        
+        private const string MapSelectionTitle = "8. Map Selection";
+        
         #endregion
         
         // public static ConfigEntry<KeyboardShortcut> KeyboardShortcut;
 
         public static void Init(ConfigFile config)
         {
+            _config = config;
             #region General
 
             ConfigEntries.Add(ReplaceMapScreen = config.Bind(
@@ -152,7 +166,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "If the map should replace the BSG default map screen, requires swapping away from modded map to refresh",
                     null,
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
 
             ConfigEntries.Add(CenterOnPlayerHotkey = config.Bind(
                 GeneralTitle,
@@ -161,7 +175,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "Pressed while the map is open, centers the player",
                     null,
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
 
             ConfigEntries.Add(MoveMapUpHotkey = config.Bind(
                 GeneralTitle,
@@ -170,7 +184,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "Hotkey to move the map up",
                     null,
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
 
             ConfigEntries.Add(MoveMapDownHotkey = config.Bind(
                 GeneralTitle,
@@ -179,7 +193,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "Hotkey to move the map down",
                     null,
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
 
             ConfigEntries.Add(MoveMapLeftHotkey = config.Bind(
                 GeneralTitle,
@@ -188,7 +202,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "Hotkey to move the map left",
                     null,
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
 
             ConfigEntries.Add(MoveMapRightHotkey = config.Bind(
                 GeneralTitle,
@@ -197,7 +211,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "Hotkey to move the map right",
                     null,
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
 
             ConfigEntries.Add(MapMoveHotkeySpeed = config.Bind(
                 GeneralTitle,
@@ -206,7 +220,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "How fast the map should move, units are map percent per second",
                     new AcceptableValueRange<float>(0.05f, 2f),
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
 
             ConfigEntries.Add(ChangeMapLevelUpHotkey = config.Bind(
                 GeneralTitle,
@@ -215,7 +229,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "Hotkey to move the map level up (shift-scroll-up also does this in map screen)",
                     null,
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
 
             ConfigEntries.Add(ChangeMapLevelDownHotkey = config.Bind(
                 GeneralTitle,
@@ -224,7 +238,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "Hotkey to move the map level down (shift-scroll-down also does this in map screen)",
                     null,
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
 
             
             ConfigEntries.Add(ZoomMainMapToMouse = config.Bind(
@@ -234,7 +248,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "If the zoom hotkeys should zoom to mouse position or center when on Map Screen in inventory / out of raid",
                     null,
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
             
             ConfigEntries.Add(ZoomMapInHotkey = config.Bind(
                 GeneralTitle,
@@ -243,7 +257,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "Hotkey to zoom the map in (scroll-up also does this in map screen)",
                     null,
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
 
             ConfigEntries.Add(ZoomMapOutHotkey = config.Bind(
                 GeneralTitle,
@@ -252,7 +266,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "Hotkey to zoom the map out (scroll-down also does this in map screen)",
                     null,
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
 
             ConfigEntries.Add(ZoomMapHotkeySpeed = config.Bind(
                 GeneralTitle,
@@ -261,7 +275,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "How fast the map should zoom by hotkey",
                     new AcceptableValueRange<float>(1f, 10f),
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
 
             ConfigEntries.Add(DumpInfoHotkey = config.Bind(
                 GeneralTitle,
@@ -276,6 +290,26 @@ namespace DynamicMaps.Config
 
             #region Dynamic Markers
 
+            var addonsPath = Path.Combine(Plugin.Path, "Addons");
+            var markerPacks = new List<string> { "Default" };
+            if (Directory.Exists(addonsPath))
+            {
+                markerPacks.AddRange(Directory.EnumerateDirectories(addonsPath)
+                    .Where(folder => Directory.Exists(Path.Combine(folder, "Markers")))
+                    .Select(folder => Path.GetFileName(folder))
+                    .Where(name => !name.Equals("Default", StringComparison.OrdinalIgnoreCase))
+                    .OrderBy(name => name, StringComparer.OrdinalIgnoreCase));
+            }
+
+            ConfigEntries.Add(MarkerPack = config.Bind(
+                DynamicMarkerTitle,
+                "Marker Pack",
+                "Default",
+                new ConfigDescription(
+                    "PNG marker icons used for all maps. Missing icons use the default pack. Restart after installing addons with markers.",
+                    new AcceptableValueList<string>(markerPacks.ToArray()),
+                    new ConfigurationManagerAttributes())));
+
             ConfigEntries.Add(ShowPlayerMarker = config.Bind(
                 DynamicMarkerTitle,
                 "Show Player Marker",
@@ -283,7 +317,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "If the player marker should be shown in raid",
                     null,
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
 
             ConfigEntries.Add(ShowFriendlyPlayerMarkersInRaid = config.Bind(
                 DynamicMarkerTitle,
@@ -292,7 +326,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "If friendly player markers should be shown in-raid",
                     null,
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
 
             ConfigEntries.Add(ShowEnemyPlayerMarkersInRaid = config.Bind(
                 DynamicMarkerTitle,
@@ -301,7 +335,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "If enemy player markers should be shown in-raid (generally for debug)",
                     null,
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
 
             ConfigEntries.Add(ShowScavMarkersInRaid = config.Bind(
                 DynamicMarkerTitle,
@@ -310,7 +344,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "If enemy scav markers should be shown in-raid (generally for debug)",
                     null,
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
 
             ConfigEntries.Add(ShowBossMarkersInRaid = config.Bind(
                 DynamicMarkerTitle,
@@ -319,7 +353,25 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "If enemy boss markers should be shown in-raid",
                     null,
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
+
+            ConfigEntries.Add(ShowNonVanillaBotMarkersInRaid = config.Bind(
+                DynamicMarkerTitle,
+                "Show Non-Vanilla Bot Markers",
+                true,
+                new ConfigDescription(
+                    "If non-vanilla bot markers should be shown in-raid",
+                    null,
+                    new ConfigurationManagerAttributes())));
+
+            ConfigEntries.Add(NonVanillaBotUseStar = config.Bind(
+                DynamicMarkerTitle,
+                "Use Star for Non-Vanilla Bots",
+                true,
+                new ConfigDescription(
+                    "Use a star instead of an arrow for non-vanilla bot markers",
+                    null,
+                    new ConfigurationManagerAttributes())));
 
             ConfigEntries.Add(ShowLockedDoorStatus = config.Bind(
                 DynamicMarkerTitle,
@@ -328,7 +380,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "If locked door markers should be updated with status based on key acquisition",
                     null,
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
 
             ConfigEntries.Add(ShowQuestsInRaid = config.Bind(
                 DynamicMarkerTitle,
@@ -337,7 +389,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "If quests should be shown in raid",
                     null,
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
 
             ConfigEntries.Add(ShowExtractsInRaid = config.Bind(
                 DynamicMarkerTitle,
@@ -346,7 +398,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "If extracts should be shown in raid",
                     null,
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
 
             ConfigEntries.Add(ShowExtractStatusInRaid = config.Bind(
                 DynamicMarkerTitle,
@@ -355,7 +407,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "If extracts should be colored according to their status in raid",
                     null,
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
             
             ConfigEntries.Add(ShowTransitPointsInRaid = config.Bind(
                 DynamicMarkerTitle,
@@ -364,7 +416,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "If transits should be shown in raid",
                     null,
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
 
             ConfigEntries.Add(ShowSecretPointsInRaid = config.Bind(
                 DynamicMarkerTitle,
@@ -373,7 +425,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "If secret extracts should be shown in raid",
                     null,
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
 
             ConfigEntries.Add(ShowDroppedBackpackInRaid = config.Bind(
                 DynamicMarkerTitle,
@@ -382,7 +434,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "If the player's dropped backpacks (not anyone elses) should be shown in raid",
                     null,
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
             
             ConfigEntries.Add(ShowWishListItemsInRaid = config.Bind(
                 DynamicMarkerTitle,
@@ -391,7 +443,16 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "Shows items that are in your wishlist on the map in raid",
                     null,
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
+
+            ConfigEntries.Add(ShowWishListItemsInContainers = config.Bind(
+                DynamicMarkerTitle,
+                "Show wish listed items in containers In Raid",
+                false,
+                new ConfigDescription(
+                    "Shows wish listed items inside containers without searching them",
+                    null,
+                    new ConfigurationManagerAttributes())));
 
             ConfigEntries.Add(ShowBTRInRaid = config.Bind(
                 DynamicMarkerTitle,
@@ -400,7 +461,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "If the BTR should be shown in raid",
                     null,
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
 
             ConfigEntries.Add(ShowAirdropsInRaid = config.Bind(
                 DynamicMarkerTitle,
@@ -409,7 +470,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "If airdrops should be shown in raid when they land",
                     null,
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
             
             ConfigEntries.Add(ShowHiddenStashesInRaid = config.Bind(
                 DynamicMarkerTitle,
@@ -418,7 +479,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "If hidden stashes should be shown in raid",
                     null,
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
 
             ConfigEntries.Add(ShowFriendlyCorpsesInRaid = config.Bind(
                 DynamicMarkerTitle,
@@ -427,7 +488,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "If friendly corpses should be shown in raid",
                     null,
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
 
             ConfigEntries.Add(ShowKilledCorpsesInRaid = config.Bind(
                 DynamicMarkerTitle,
@@ -436,7 +497,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "If corpses killed by the player should be shown in raid, killed bosses will be shown in another color",
                     null,
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
 
             ConfigEntries.Add(ShowFriendlyKilledCorpsesInRaid = config.Bind(
                 DynamicMarkerTitle,
@@ -445,7 +506,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "If corpses killed by friendly players should be shown in raid, killed bosses will be shown in another color",
                     null,
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
 
             ConfigEntries.Add(ShowBossCorpsesInRaid = config.Bind(
                 DynamicMarkerTitle,
@@ -454,7 +515,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "If boss corpses (other than ones killed by the player) should be shown in raid",
                     null,
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
 
             ConfigEntries.Add(ShowOtherCorpsesInRaid = config.Bind(
                 DynamicMarkerTitle,
@@ -463,7 +524,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "If corpses (other than friendly ones or ones killed by the player) should be shown in raid",
                     null,
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
 
             #endregion
             
@@ -476,7 +537,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "Requires you to have a map in your inventory in order to view the map in raid.",
                     null,
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
             
             ConfigEntries.Add(ShowPmcIntelLevel = config.Bind(
                 ProgressionTitle,
@@ -485,7 +546,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "If intel level is at or above this value it will show PMCs",
                     new AcceptableValueRange<int>(0, 3),
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
             
             ConfigEntries.Add(ShowBossIntelLevel = config.Bind(
                 ProgressionTitle,
@@ -494,7 +555,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "If intel level is at or above this value it will show bosses",
                     new AcceptableValueRange<int>(0, 3),
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
             
             ConfigEntries.Add(ShowScavIntelLevel = config.Bind(
                 ProgressionTitle,
@@ -503,7 +564,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "If intel level is at or above this value it will show scavs",
                     new AcceptableValueRange<int>(0, 3),
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
             
             ConfigEntries.Add(ShowFriendlyIntelLevel = config.Bind(
                 ProgressionTitle,
@@ -512,7 +573,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "If intel level is at or above this value it will show friendly PMCs",
                     new AcceptableValueRange<int>(0, 3),
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
             
             ConfigEntries.Add(ShowCorpseIntelLevel = config.Bind(
                 ProgressionTitle,
@@ -521,7 +582,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "If intel level is at or above this value it will show corpses",
                     new AcceptableValueRange<int>(0, 3),
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
             
             ConfigEntries.Add(ShowAirdropIntelLevel = config.Bind(
                 ProgressionTitle,
@@ -530,7 +591,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "If intel level is at or above this value it will show airdrops",
                     new AcceptableValueRange<int>(0, 3),
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
             
             ConfigEntries.Add(ShowWishListItemsIntelLevel = config.Bind(
                 ProgressionTitle,
@@ -539,7 +600,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "If intel level is at or above this value it will show wish listed loot items",
                     new AcceptableValueRange<int>(0, 3),
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
             
             ConfigEntries.Add(ShowHiddenStashIntelLevel = config.Bind(
                 ProgressionTitle,
@@ -548,7 +609,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "If intel level is at or above this value it will show hidden stashes",
                     new AcceptableValueRange<int>(0, 3),
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
 
             #endregion
             
@@ -561,7 +622,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "If the level should be automatically selected based on the players position in raid",
                     null,
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
 
             ConfigEntries.Add(AutoCenterOnPlayerMarker = config.Bind(
                 InRaidTitle,
@@ -570,7 +631,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "If the player marker should be centered when showing the map in raid (Conflicts with 'Remember Map Position')",
                     null,
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
 
             ConfigEntries.Add(ResetZoomOnCenter = config.Bind(
                 InRaidTitle,
@@ -579,7 +640,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "If the zoom level should be reset each time that the map is opened while in raid (Conflicts with 'Remember Map Position')",
                     null,
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
 
             ConfigEntries.Add(RetainMapPosition = config.Bind(
                 InRaidTitle,
@@ -588,25 +649,25 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "Should we remember the map position (Map position memory is only maintained for the current raid) (Conflicts with 'Auto Center On Player Marker' and 'Reset Zoom On Center')",
                     null,
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
             
             ConfigEntries.Add(CenteringZoomResetPoint = config.Bind(
                 InRaidTitle,
                 "Centering On Player Zoom Level",
                 0.15f,
                 new ConfigDescription(
-                    "What zoom level should be used as while centering on the player (0 is fully zoomed out, and 1 is fully zoomed in)",
+                    "What zoom level should be used as while centering on the player, with reset zoom enabled (0 is fully zoomed out, and 1 is fully zoomed in)",
                     new AcceptableValueRange<float>(0f, 1f),
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
             
             ConfigEntries.Add(ZoomMainMap = config.Bind(
                 InRaidTitle,
                 "Main map zoom",
                 0f,
                 new ConfigDescription(
-                    "What zoom level should be used for the main map. (Tab view/Peek view) (0 is fully zoomed out, and 1 is fully zoomed in)",
+                    "Starting zoom for the in-raid Map tab and Peek view (ignored if reset zoom on center is on). Out-of-raid maps open fitted to the screen. (0 is fully zoomed out, and 1 is fully zoomed in)",
                     new AcceptableValueRange<float>(0f, 1f),
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
             
             ConfigEntries.Add(PeekShortcut = config.Bind(
                 InRaidTitle,
@@ -615,7 +676,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "The keyboard shortcut to peek at the map",
                     null,
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
 
             ConfigEntries.Add(HoldForPeek = config.Bind(
                 InRaidTitle,
@@ -624,7 +685,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "If the shortcut should be held to keep it open. If disabled, button toggles",
                     null,
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
             
             ConfigEntries.Add(MapTransitionEnabled = config.Bind(
                 InRaidTitle,
@@ -633,7 +694,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "Enable the map transition animations (When disabled everything will snap)",
                     null,
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
 
             #endregion
 
@@ -651,7 +712,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "Enable the mini-map",
                     null,
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
             
             ConfigEntries.Add(MiniMapPosition = config.Bind(
                 MiniMapTitle,
@@ -660,7 +721,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "What corner is the mini-map displayed in",
                     null,
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
             
             ConfigEntries.Add(MiniMapSizeX = config.Bind(
                 MiniMapTitle,
@@ -669,7 +730,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "Horizontal size of the mini-map",
                     new AcceptableValueRange<float>(0f, 850f),
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
             
             ConfigEntries.Add(MiniMapSizeY = config.Bind(
                 MiniMapTitle,
@@ -678,7 +739,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "Vertical size of the mini-map",
                     new AcceptableValueRange<float>(0f, 850f),
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
             
             ConfigEntries.Add(MiniMapScreenOffsetX = config.Bind(
                 MiniMapTitle,
@@ -687,7 +748,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "Horizontal Offset from the edge (These values update according to screen resolution, REQUIRES RESTART IF YOU CHANGED YOUR RESOLUTION)",
                     new AcceptableValueRange<float>(-Screen.width / 4f, Screen.width),
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
             
             ConfigEntries.Add(MiniMapScreenOffsetY = config.Bind(
                 MiniMapTitle,
@@ -696,7 +757,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "Vertical offset from the edge (These values update according to screen resolution, REQUIRES RESTART IF YOU CHANGED YOUR RESOLUTION)",
                     new AcceptableValueRange<float>(-Screen.height / 4f, Screen.height),
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
             
             ConfigEntries.Add(MiniMapShowOrHide = config.Bind(
                 MiniMapTitle,
@@ -705,7 +766,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "Show or hide the mini-map",
                     null,
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
             
             ConfigEntries.Add(ZoomMiniMap = config.Bind(
                 MiniMapTitle,
@@ -714,7 +775,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "What zoom level should be used for the mini map. (0 is fully zoomed out, and 15 is fully zoomed in)",
                     new AcceptableValueRange<float>(0f, 1f),
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
 
             ConfigEntries.Add(ZoomInMiniMapHotkey = config.Bind(
                 MiniMapTitle,
@@ -723,7 +784,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "Zoom in on mini map key bind",
                     null,
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
             
             ConfigEntries.Add(ZoomOutMiniMapHotkey = config.Bind(
                 MiniMapTitle,
@@ -732,7 +793,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "Zoom out on mini map key bind",
                     null,
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
             
             ZoomMiniMap.SettingChanged += ZoomMiniMapChanged;
             
@@ -747,7 +808,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "Color of the marker",
                     null,
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
             
             ConfigEntries.Add(PmcBearColor = config.Bind(
                 MarkerColors,
@@ -756,7 +817,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "Color of the marker",
                     null,
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
             
             ConfigEntries.Add(PmcUsecColor = config.Bind(
                 MarkerColors,
@@ -765,7 +826,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "Color of the marker",
                     null,
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
             
             ConfigEntries.Add(ScavColor = config.Bind(
                 MarkerColors,
@@ -774,7 +835,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "Color of the marker",
                     null,
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
             
             ConfigEntries.Add(BossColor = config.Bind(
                 MarkerColors,
@@ -783,7 +844,16 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "Color of the marker",
                     null,
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
+
+            ConfigEntries.Add(NonVanillaBotColor = config.Bind(
+                MarkerColors,
+                "Non-Vanilla bot marker color",
+                new Color(0.33f, 0.15f, 0.15f),
+                new ConfigDescription(
+                    "Color of non-vanilla bot markers",
+                    null,
+                    new ConfigurationManagerAttributes())));
             
             ConfigEntries.Add(AirdropColor = config.Bind(
                 MarkerColors,
@@ -792,7 +862,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "Color of the marker",
                     null,
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
             
             ConfigEntries.Add(BackpackColor = config.Bind(
                 MarkerColors,
@@ -801,7 +871,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "Color of the marker",
                     null,
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
             
             ConfigEntries.Add(LootItemColor = config.Bind(
                 MarkerColors,
@@ -810,7 +880,16 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "Color of the marker",
                     null,
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
+
+            ConfigEntries.Add(ContainerLootItemColor = config.Bind(
+                MarkerColors,
+                "Wishlisted container loot marker color",
+                new Color(0.77f, 0.81f, 0.7f),
+                new ConfigDescription(
+                    "Color of wish listed item markers inside world containers",
+                    null,
+                    new ConfigurationManagerAttributes())));
             
             ConfigEntries.Add(KilledCorpseColor = config.Bind(
                 MarkerColors,
@@ -819,7 +898,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "Color of the marker",
                     null,
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
 
             ConfigEntries.Add(KilledBossColor = config.Bind(
                 MarkerColors,
@@ -828,7 +907,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "Color of the marker",
                     null,
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
             
             ConfigEntries.Add(KilledOtherColor = config.Bind(
                 MarkerColors,
@@ -837,7 +916,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "Color of the marker",
                     null,
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
             
             ConfigEntries.Add(LootedCorpseColor = config.Bind(
                 MarkerColors,
@@ -864,7 +943,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "Color of the marker",
                     null,
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
             
             ConfigEntries.Add(ExtractDefaultColor = config.Bind(
                 MarkerColors,
@@ -873,7 +952,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "Color of the marker",
                     null,
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
             
             ConfigEntries.Add(ExtractOpenColor = config.Bind(
                 MarkerColors,
@@ -882,7 +961,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "Color of the marker",
                     null,
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
             
             ConfigEntries.Add(ExtractClosedColor = config.Bind(
                 MarkerColors,
@@ -891,7 +970,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "Color of the marker",
                     null,
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
             
             ConfigEntries.Add(ExtractHasRequirementsColor = config.Bind(
                 MarkerColors,
@@ -900,7 +979,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "Color of the marker",
                     null,
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
             
             ConfigEntries.Add(TransPointColor = config.Bind(
                 MarkerColors,
@@ -909,7 +988,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "Color of the marker",
                     null,
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
 
             ConfigEntries.Add(SecretPointColor = config.Bind(
                 MarkerColors,
@@ -918,7 +997,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "Color of the marker",
                     null,
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
 
             ConfigEntries.Add(HiddenStashColor = config.Bind(
                 MarkerColors,
@@ -927,7 +1006,7 @@ namespace DynamicMaps.Config
                 new ConfigDescription(
                     "Color of the marker",
                     null,
-                    new ConfigurationManagerAttributes { })));
+                    new ConfigurationManagerAttributes())));
             
             #endregion
             
@@ -949,6 +1028,44 @@ namespace DynamicMaps.Config
             RecalcOrder();
         }
         
+        public static void RegisterMapPreference(string location, IEnumerable<string> maps)
+        {
+            var choices = new[] { "Automatic" }.Concat(maps).ToArray();
+            var selected = "Automatic";
+            if (MapPreferences.TryGetValue(location, out var existing))
+            {
+                var acceptable = (AcceptableValueList<string>)existing.Description.AcceptableValues;
+                if (acceptable.AcceptableValues.SequenceEqual(choices))
+                {
+                    return;
+                }
+                
+                selected = existing.Value;
+                _config.Remove(existing.Definition);
+                ConfigEntries.Remove(existing);
+            }
+
+            var preference = _config.Bind(MapSelectionTitle, Uri.EscapeDataString(location),
+                "Automatic", new ConfigDescription(
+                    "Map used in raid. Automatic prefers a bundled map, then a matching addon. Changes apply when the map next opens.",
+                    new AcceptableValueList<string>(choices),
+                    new ConfigurationManagerAttributes()));
+            
+            if (choices.Contains(selected) && selected != "Automatic")
+            {
+                preference.Value = selected;
+            }
+            
+            MapPreferences[location] = preference;
+            ConfigEntries.Add(preference);
+            RecalcOrder();
+        }
+
+        public static string GetPreferredMap(string location)
+        {
+            return MapPreferences.TryGetValue(location, out var preference) ? preference.Value : "Automatic";
+        }
+
         private static void RecalcOrder()
         {
             // Set the Order field for all settings, to avoid unnecessary changes when adding new settings
